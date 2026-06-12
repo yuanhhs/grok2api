@@ -5,6 +5,7 @@ retry-on-reset, and timeout.
 """
 
 from typing import AsyncGenerator
+from urllib.parse import urlparse
 
 from app.platform.logging.logger import logger
 from app.platform.errors import UpstreamError
@@ -34,6 +35,8 @@ async def post_stream(
         origin=origin,
         referer=referer,
         lease=lease,
+        method="POST",
+        pathname=urlparse(url).path,
     )
     kwargs = build_session_kwargs(lease=lease)
 
@@ -102,7 +105,8 @@ async def post_json(
     When *session* is ``None`` a fresh session is created and closed automatically.
     """
     headers = build_http_headers(
-        token, content_type=content_type, origin=origin, referer=referer, lease=lease
+        token, content_type=content_type, origin=origin, referer=referer, lease=lease,
+        method="POST", pathname=urlparse(url).path,
     )
 
     import orjson
@@ -146,6 +150,8 @@ async def get_json(
         origin=origin,
         referer=referer,
         lease=lease,
+        method="GET",
+        pathname=urlparse(url).path,
     )
     kwargs = build_session_kwargs(lease=lease)
 
@@ -193,6 +199,8 @@ async def delete_json(
         origin=origin,
         referer=referer,
         lease=lease,
+        method="DELETE",
+        pathname=urlparse(url).path,
     )
     kwargs = build_session_kwargs(lease=lease)
 
@@ -245,6 +253,8 @@ async def get_bytes_stream(
         origin=origin,
         referer=referer,
         lease=lease,
+        method="GET",
+        pathname=urlparse(url).path,
     )
     if extra_headers:
         headers.update(extra_headers)

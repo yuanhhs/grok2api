@@ -24,6 +24,7 @@ from app.control.proxy.feedback import build_feedback
 from app.control.proxy.models import ProxyFeedback, ProxyFeedbackKind
 
 _UPLOAD_URL = "https://grok.com/rest/app-chat/upload-file"
+_UPLOAD_PATH = "/rest/app-chat/upload-file"
 _X_USER_ID_RE = re.compile(r"(?:^|;\s*)x-userid=([^;]+)")
 
 # Global semaphore — limits concurrent upload_file() calls across all requests.
@@ -125,7 +126,9 @@ async def _upload_file_inner(
         "fileMimeType": mime,
         "content":      b64,
     })
-    headers = build_http_headers(token, lease=lease)
+    headers = build_http_headers(
+        token, lease=lease, method="POST", pathname=_UPLOAD_PATH,
+    )
     kwargs  = build_session_kwargs(lease=lease)
 
     try:

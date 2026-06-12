@@ -1,0 +1,60 @@
+{"i":1,"http":"200","time":3.385819,"content_chunks":12,"done":1,"stop":1,"total_tokens":"2230","err":""}
+{"i":2,"http":"200","time":2.462133,"content_chunks":0,"done":0,"stop":0,"total_tokens":"","err":""}
+{"i":3,"http":"000","time":5.110051,"content_chunks":0,"done":0,"stop":0,"total_tokens":"","err":""}
+{"i":4,"http":"200","time":7.062791,"content_chunks":11,"done":1,"stop":1,"total_tokens":"2196","err":""}
+{"i":5,"http":"200","time":1.209612,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'Console API returned 429'"}
+{"i":6,"http":"200","time":3.843124,"content_chunks":13,"done":1,"stop":1,"total_tokens":"2261","err":""}
+{"i":7,"http":"200","time":4.005005,"content_chunks":11,"done":1,"stop":1,"total_tokens":"2271","err":""}
+{"i":8,"http":"200","time":3.501577,"content_chunks":10,"done":1,"stop":1,"total_tokens":"2260","err":""}
+{"i":9,"http":"200","time":3.763630,"content_chunks":12,"done":1,"stop":1,"total_tokens":"2256","err":""}
+{"i":10,"http":"200","time":1.718922,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":11,"http":"200","time":1.001837,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":12,"http":"200","time":1.258887,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":13,"http":"200","time":0.903936,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":14,"http":"200","time":1.177291,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":15,"http":"200","time":1.209754,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":16,"http":"200","time":0.832710,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":17,"http":"200","time":1.075446,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":18,"http":"200","time":0.956496,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":19,"http":"200","time":1.047864,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":20,"http":"200","time":1.267908,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":21,"http":"200","time":0.855415,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":22,"http":"200","time":1.229591,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":23,"http":"200","time":0.854187,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":24,"http":"200","time":0.922357,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":25,"http":"200","time":0.927808,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":26,"http":"200","time":0.917118,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":27,"http":"200","time":1.187016,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":28,"http":"200","time":0.912041,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":29,"http":"200","time":0.965428,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":30,"http":"000","time":0.536304,"content_chunks":0,"done":0,"stop":0,"total_tokens":"","err":""}
+{"i":31,"http":"000","time":5.111595,"content_chunks":0,"done":0,"stop":0,"total_tokens":"","err":""}
+{"i":32,"http":"200","time":5.154908,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":33,"http":"200","time":1.240648,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":34,"http":"200","time":0.843481,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":35,"http":"200","time":1.151503,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":36,"http":"200","time":0.870398,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":37,"http":"200","time":0.917912,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":38,"http":"200","time":0.853702,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":39,"http":"200","time":1.252208,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":40,"http":"200","time":1.280240,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":41,"http":"200","time":1.228184,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":42,"http":"200","time":0.880127,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":43,"http":"200","time":0.838152,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":44,"http":"200","time":1.015194,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":45,"http":"200","time":1.073695,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":46,"http":"200","time":1.305545,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":47,"http":"200","time":0.943141,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":48,"http":"200","time":0.938064,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":49,"http":"200","time":0.952770,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":50,"http":"200","time":1.009351,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":51,"http":"200","time":0.953648,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":52,"http":"200","time":0.921730,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":53,"http":"200","time":0.875995,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":54,"http":"200","time":1.169533,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":55,"http":"200","time":0.913141,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":56,"http":"200","time":0.942308,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":57,"http":"200","time":0.919366,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":58,"http":"200","time":0.930040,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":59,"http":"200","time":0.910237,"content_chunks":0,"done":1,"stop":0,"total_tokens":"","err":"'error':{'message':'No available accounts for this model tier'"}
+{"i":60,"http":"000","time":0.957331,"content_chunks":0,"done":0,"stop":0,"total_tokens":"","err":""}
