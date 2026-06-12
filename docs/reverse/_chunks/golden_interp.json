@@ -1,0 +1,31 @@
+{
+  "note": "④ transform 插值正向闭合的权威向量 (2026-06-12)。纯 Python build_z_suffix(row,C) 与 Chrome Web-Animations computed matrix 逐位吻合。",
+  "build": "0vu5gegy_t7j9.js",
+  "currentTime_formula": "round(C/10)*10  (量化到 10ms 网格; M=Math.round=round-half-up)",
+  "anim_construction": {
+    "duration": 4096,
+    "color": ["#RGB(row[0:3])", "#RGB(row[3:6])"],
+    "transform": ["rotate(0deg)", "rotate(H(row[6],60,360,true)deg)"],
+    "easing": "cubic-bezier(row[7:11].map((v,i)=>H(v, i%2?-1:0, 1)))",
+    "H": "(n,t,r,c)=> u=n*(r-t)/255+t; c?floor(u):+u.toFixed(2)"
+  },
+  "op_keys_resolved": {
+    "hGLGR": "n*W (乘)",
+    "vWSpQ": "n(W) (函数调用 — 曾被误当乘法, 是 ct 公式卡壳根因)",
+    "dFXaJ": "n/W (除)"
+  },
+  "row": [221, 181, 84, 119, 84, 7, 89, 182, 73, 226, 187],
+  "easing_decoded": [0.71, -0.43, 0.89, 0.47],
+  "rotateTo_deg": 164,
+  "matrix_match_vs_chrome": [
+    {"ct": 0,    "p": 0,          "chrome": "1, 0, 0, 1",                  "python": "1, 0, 0, 1"},
+    {"ct": 10,   "p": -0.001475,  "chrome": "0.999991, -0.00422082",      "python": "0.999991, -0.004221"},
+    {"ct": 100,  "p": -0.014384,  "chrome": "0.999153, -0.041159",        "python": "0.999153, -0.041159"},
+    {"ct": 320,  "p": -0.043082,  "chrome": "0.992406, -0.123004",        "python": "0.992406, -0.123004"},
+    {"ct": 1000, "p": -0.102613,  "chrome": "0.957176, -0.289508",        "python": "0.957176, -0.289508"}
+  ],
+  "end_to_end": [
+    {"name": "run1 C=1 (ct=0 平凡)",   "C": 1,  "ct": 0,  "suffix": "ddb554100100", "match": "EXACT"},
+    {"name": "run1 C=15 (ct=20 非平凡)", "C": 15, "ct": 20, "suffix": "ddb55410028f5c28f5c28f60028f5c28f5c28f6100", "match": "EXACT"}
+  ]
+}

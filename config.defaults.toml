@@ -62,6 +62,30 @@ imagine_public_image_proxy = false
 video_format = "grok_url"
 
 
+# ==================== Statsig 真签名 ====================
+# x-statsig-id 请求头的生成方式。详见 docs/reverse/x-statsig-id-逆向分析.md。
+#
+# 两种形态：
+#   - 真签名 (real)：用一组会话指纹 (Q, SALT) 纯 Python 现场签名，产出 94 字符。
+#       实测可跨多账号发消息全部 200（创建真实会话）。
+#   - x0 兜底 (fallback)：模仿官方前端 z(Q) 抛错时的 btoa("x0:"+error)。
+#       当前 build 下官方自身即发此值、服务端仍 200。
+#
+# 指纹 (Q, SALT) 与 cf_clearance 同构：build 常量级别，grok 发新构建后失效、
+# 需重新提取一次（浏览器读 meta[name="grok-site―verification"] 得 Q、
+# hook crypto.subtle.digest 读明文输入取 SALT）。
+#
+# 默认行为：mode=real 且指纹配齐 → 走真签名；指纹缺失或异常 → 自动回退 x0 兜底。
+# 故开箱即用（不配指纹即等价旧行为），配齐指纹自动升级，无需改代码。
+[statsig]
+# 模式：real（配齐指纹走真签名，否则回退兜底）| fallback（强制只用 x0 兜底）
+mode = "real"
+# 全局设备指纹 Q：48 字节的 base64 字符串（从 meta grok-site―verification 取）
+q = ""
+# 完整 SALT（obfiowerehiring + z(Q)）；也可只填 z(Q) 后缀，自动补前缀
+salt = ""
+
+
 # ==================== 本地缓存 ====================
 [cache.local]
 # 图片缓存上限（MB），0 = 不限制；超限后按最旧文件优先清理，并回落到上限的 60%

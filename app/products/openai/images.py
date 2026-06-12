@@ -45,7 +45,7 @@ from app.dataplane.reverse.transport.media import create_media_post
 from app.dataplane.proxy import get_proxy_runtime
 from app.dataplane.proxy.adapters.headers import build_http_headers, build_sso_cookie
 from app.dataplane.proxy.adapters.session import ResettableSession, build_session_kwargs
-from app.dataplane.reverse.runtime.endpoint_table import CHAT
+from app.dataplane.reverse.runtime.endpoint_table import CHAT, CHAT_PATH
 from ._format import (
     make_chat_response,
     make_response_id,
@@ -911,6 +911,8 @@ async def _stream_image_edit(
         lease=lease,
         origin="https://grok.com",
         referer=f"https://grok.com/imagine/post/{parent_post_id}",
+        method="POST",
+        pathname=CHAT_PATH,
     )
     kwargs = build_session_kwargs(lease=lease)
 
@@ -948,7 +950,7 @@ async def _stream_lite_generate(
         file_attachments  = [],
         request_overrides = {"imageGenerationCount": 2},
     )
-    headers = build_http_headers(token, lease=lease)
+    headers = build_http_headers(token, lease=lease, method="POST", pathname=CHAT_PATH)
     kwargs  = build_session_kwargs(lease=lease)
 
     async with ResettableSession(**kwargs) as session:

@@ -39,7 +39,7 @@ from app.dataplane.reverse.protocol.xai_assets import (
     resolve_download_url,
 )
 from app.dataplane.reverse.protocol.xai_chat import classify_line, raise_for_stream_error
-from app.dataplane.reverse.runtime.endpoint_table import CHAT
+from app.dataplane.reverse.runtime.endpoint_table import CHAT, CHAT_PATH
 from app.dataplane.reverse.transport.asset_upload import (
     resolve_uploaded_asset_reference,
     upload_from_input,
@@ -333,6 +333,8 @@ async def _stream_video_request(
         origin="https://grok.com",
         referer=referer,
         lease=lease,
+        method="POST",
+        pathname=CHAT_PATH,
     )
     kwargs = build_session_kwargs(lease=lease)
 

@@ -36,7 +36,7 @@ from app.dataplane.reverse.protocol.xai_chat import (
     StreamAdapter,
 )
 from app.dataplane.reverse.protocol.xai_usage import is_invalid_credentials_error
-from app.dataplane.reverse.runtime.endpoint_table import CHAT
+from app.dataplane.reverse.runtime.endpoint_table import CHAT, CHAT_PATH
 from app.dataplane.reverse.transport.asset_upload import upload_from_input
 from app.dataplane.reverse.protocol.tool_prompt import (
     build_tool_system_prompt,
@@ -409,6 +409,8 @@ async def _stream_chat(
         origin="https://grok.com",
         referer="https://grok.com/",
         lease=lease,
+        method="POST",
+        pathname=CHAT_PATH,
     )
     session_kwargs = build_session_kwargs(lease=lease)
 

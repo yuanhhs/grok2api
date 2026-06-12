@@ -3,19 +3,16 @@
 All values are sanitized to ASCII-safe Latin-1 before use.
 """
 
-import base64
-import random
 import re
-import string
 import uuid
 from typing import Optional
 from urllib.parse import urlparse
 
 
 from app.platform.logging.logger import logger
-from app.platform.config.snapshot import get_config
 from app.control.proxy.models import ProxyLease
 from app.dataplane.proxy.adapters.profile import ProxyProfile, resolve_proxy_profile
+from app.dataplane.proxy.adapters.statsig import statsig_id
 
 # ---------------------------------------------------------------------------
 # Unicode → ASCII normalisation map
@@ -64,20 +61,15 @@ def _sanitize(value: Optional[str], *, field: str, strip_spaces: bool = False) -
 # ---------------------------------------------------------------------------
 
 
-def _statsig_id() -> str:
-    cfg = get_config()
-    if cfg.get_bool("features.dynamic_statsig", False):
-        if random.choice((True, False)):
-            rand = "".join(random.choices(string.ascii_lowercase + string.digits, k=5))
-            msg = f"x1:TypeError: Cannot read properties of null (reading 'children['{rand}']')"
-        else:
-            rand = "".join(random.choices(string.ascii_lowercase, k=10))
-            msg = f"x1:TypeError: Cannot read properties of undefined (reading '{rand}')"
-        return base64.b64encode(msg.encode()).decode()
-    return (
-        "ZTpUeXBlRXJyb3I6IENhbm5vdCByZWFkIHByb3BlcnRpZXMgb2YgdW5kZWZpbmVkIChyZWFkaW5nICdjaGls"
-        "ZE5vZGVzJyk="
-    )
+def _statsig_id(method: Optional[str] = None, pathname: Optional[str] = None) -> str:
+    """生成 x-statsig-id 头，委托给 statsig 模块。
+
+    传入 method/pathname 时优先走真签名（需 [statsig] 配齐全局指纹 Q+SALT）；
+    任一前提不满足或签名异常时，自动回退官方 x0 兜底。详见
+    ``app/dataplane/proxy/adapters/statsig.py`` 与
+    ``docs/reverse/x-statsig-id-逆向分析.md``。
+    """
+    return statsig_id(method, pathname)
 
 
 # ---------------------------------------------------------------------------
@@ -224,8 +216,15 @@ def build_http_headers(
     origin: Optional[str] = None,
     referer: Optional[str] = None,
     lease: ProxyLease | None = None,
+    method: Optional[str] = None,
+    pathname: Optional[str] = None,
 ) -> dict[str, str]:
-    """Build headers for a standard HTTP reverse-proxy request."""
+    """Build headers for a standard HTTP reverse-proxy request.
+
+    Pass *method*/*pathname* to enable the real x-statsig-id signature
+    (needs a configured global fingerprint); omit them to fall back to the
+    official x0 stub. See ``statsig.py``.
+    """
     profile = _resolve_profile(lease)
     raw_ua = profile.user_agent
     ua = _sanitize(raw_ua, field="user_agent")
@@ -268,7 +267,7 @@ def build_http_headers(
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": site,
         "User-Agent": ua,
-        "x-statsig-id": _statsig_id(),
+        "x-statsig-id": _statsig_id(method, pathname),
         "x-xai-request-id": str(uuid.uuid4()),
     }
     headers.update(_client_hints(browser, raw_ua))

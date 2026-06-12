@@ -14,6 +14,7 @@ CONSOLE_BASE = "https://console.x.ai"
 
 # ── App-chat (SSE streaming, new conversation) ──────────────────────────
 CHAT              = f"{BASE}/rest/app-chat/conversations/new"
+CHAT_PATH         = "/rest/app-chat/conversations/new"   # pathname for x-statsig-id signing
 
 # ── Asset management ─────────────────────────────────────────────────────
 ASSETS_UPLOAD     = f"{BASE}/rest/app-chat/upload-file"        # POST (base64 upload)
@@ -51,7 +52,7 @@ CONSOLE_CHAT      = f"{CONSOLE_BASE}/v1/chat/completions"      # POST (OpenAI Ch
 
 __all__ = [
     "BASE", "ASSETS_CDN", "CONSOLE_BASE",
-    "CHAT",
+    "CHAT", "CHAT_PATH",
     "ASSETS_UPLOAD", "ASSETS_LIST", "ASSETS_DELETE", "ASSETS_DOWNLOAD",
     "RATE_LIMITS",
     "ACCEPT_TOS", "NSFW_MGMT", "SET_BIRTH",
