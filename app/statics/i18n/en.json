@@ -344,6 +344,7 @@
         "baseAccess": "Access Control",
         "features": "Core Features",
         "mediaFormat": "Media Output",
+        "statsig": "Statsig Fingerprint",
         "refreshSchedule": "Quota Refresh",
         "selection": "Selection Concurrency",
         "batchConcurrency": "Batch Concurrency",
@@ -373,6 +374,10 @@
           "direct": "Direct",
           "singleProxy": "Fixed Proxy",
           "proxyPool": "Proxy Pool"
+        },
+        "statsigMode": {
+          "real": "Real signature first (fall back on missing fingerprint)",
+          "fallback": "Force x0 stub"
         },
         "clearanceMode": {
           "none": "Disabled",
@@ -428,6 +433,18 @@
         "dynamicStatsig": {
           "label": "Dynamic Statsig",
           "desc": "Generates a fresh Statsig device fingerprint for each request to reduce the likelihood of risk-control challenges."
+        },
+        "statsigMode": {
+          "label": "x-statsig-id Algorithm",
+          "desc": "Strategy for the x-statsig-id header. Real Signature First: uses the reverse-engineered real signature when a global fingerprint (Q + SALT) is configured, otherwise auto-falls back to the x0 stub. Force x0 Stub: always sends the official x0 fallback value. Fingerprint becomes invalid after a Grok build update and must be re-extracted (see docs/reverse)."
+        },
+        "statsigQ": {
+          "label": "Statsig Fingerprint Q",
+          "desc": "Base64 of the 48-byte device fingerprint Q. Extracted once from a browser: meta[name=grok-site verification].content. Required for the real signature; leave empty to use the x0 stub."
+        },
+        "statsigSalt": {
+          "label": "Statsig SALT",
+          "desc": "Full SALT (obfiowerehiring + z(Q)) or just the z(Q) suffix (prefix auto-completed). Extracted once from a browser by hooking crypto.subtle.digest to read the plaintext input. Required for the real signature."
         },
         "enableNsfw": {
           "label": "Allow NSFW Generation",

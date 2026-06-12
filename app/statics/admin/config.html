@@ -494,6 +494,42 @@ const SCHEMA_DEF = [
           },
         ]
       },
+      {
+        title: 'Statsig 指纹算法', titleKey: 'config.schema.groups.statsig',
+        section: 'statsig',
+        fields: [
+          {
+            key: 'mode',
+            label: 'x-statsig-id 算法',
+            labelKey: 'config.schema.fields.statsigMode.label',
+            type: 'select',
+            options: [
+              { value: 'real', label: '真签名优先（推荐）', labelKey: 'config.schema.options.statsigMode.real' },
+              { value: 'fallback', label: '强制 x0 兜底', labelKey: 'config.schema.options.statsigMode.fallback' },
+            ],
+            desc: '真签名优先：已配置全局指纹（Q + SALT）时用纯算法生成真实 x-statsig-id 签名，未配置或异常时自动回退官方 x0 兜底。强制 x0 兜底：始终发送 x0 兜底值（项目历史默认行为）。',
+            descKey: 'config.schema.fields.statsigMode.desc',
+          },
+          {
+            key: 'q',
+            label: 'Q 设备指纹（base64）',
+            labelKey: 'config.schema.fields.statsigQ.label',
+            type: 'textarea',
+            desc: '48 字节设备指纹的 base64 编码。浏览器打开 grok.com 读取 meta[name="grok-site―verification"] 的 content 即得。grok 发新构建后失效，需重新提取。留空则回退 x0 兜底。',
+            descKey: 'config.schema.fields.statsigQ.desc',
+            showIf: { path: 'statsig.mode', values: ['real'] },
+          },
+          {
+            key: 'salt',
+            label: 'SALT 指纹',
+            labelKey: 'config.schema.fields.statsigSalt.label',
+            type: 'textarea',
+            desc: '完整 SALT（obfiowerehiring 开头）或仅 z(Q) 后缀（自动补前缀）。浏览器 hook crypto.subtle.digest 读明文输入 "{METHOD}!{path}!{tf}{SALT}" 截取 SALT。与 Q 同批提取。留空则回退 x0 兜底。',
+            descKey: 'config.schema.fields.statsigSalt.desc',
+            showIf: { path: 'statsig.mode', values: ['real'] },
+          },
+        ]
+      },
     ]
   },
   {

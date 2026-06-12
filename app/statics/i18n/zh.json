@@ -343,6 +343,7 @@
       "groups": {
         "baseAccess": "基础访问控制",
         "features": "基本功能设置",
+        "statsig": "Statsig 指纹算法",
         "mediaFormat": "媒体返回格式",
         "refreshSchedule": "配额刷新调度",
         "selection": "选号并发限制",
@@ -378,6 +379,10 @@
           "none": "关闭",
           "manual": "手动",
           "flaresolverr": "FlareSolverr"
+        },
+        "statsigMode": {
+          "real": "真签名优先（缺指纹自动回退兜底）",
+          "fallback": "强制兜底（x0）"
         }
       },
       "fields": {
@@ -428,6 +433,18 @@
         "dynamicStatsig": {
           "label": "动态 Statsig",
           "desc": "为每次请求动态生成 Statsig 设备指纹，以降低风控拦截概率。"
+        },
+        "statsigMode": {
+          "label": "Statsig 算法模式",
+          "desc": "x-statsig-id 请求头的生成策略。真签名优先：配齐下方指纹时用纯算法生成真实签名，缺失或异常时自动回退 x0 兜底；强制兜底：始终发送官方 x0 兜底值（无需指纹）。"
+        },
+        "statsigQ": {
+          "label": "Statsig 指纹 Q",
+          "desc": "48 字节设备指纹的 base64 字符串。从浏览器读 meta[name=grok-site-verification] 的 content 取得。真签名模式必填；与 SALT 同属 build 常量，Grok 发新构建后需重新提取。"
+        },
+        "statsigSalt": {
+          "label": "Statsig 指纹 SALT",
+          "desc": "完整 SALT（obfiowerehiring 开头）或仅 z(Q) 后缀（自动补前缀）。从浏览器 hook crypto.subtle.digest 读明文输入取得。真签名模式必填。"
         },
         "enableNsfw": {
           "label": "允许 NSFW 生成",
