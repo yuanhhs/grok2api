@@ -187,10 +187,20 @@ def statsig_id(method: Optional[str] = None, pathname: Optional[str] = None) -> 
         fp = resolve_statsig_fingerprint(cfg)
         if fp.is_complete:
             try:
-                return gen_x_statsig_id(method, pathname, fp.q, fp.salt)
+                sig = gen_x_statsig_id(method, pathname, fp.q, fp.salt)
+                logger.debug(
+                    "statsig 真签名: method={} pathname={} len={}",
+                    method,
+                    pathname,
+                    len(sig),
+                )
+                return sig
             except Exception as exc:
                 logger.warning("statsig 真签名失败, 回退 x0 兜底: {}", exc)
 
+    logger.debug(
+        "statsig x0 兜底: mode={} method={} pathname={}", mode, method, pathname
+    )
     return x0_fallback(dynamic_fb)
 
 
