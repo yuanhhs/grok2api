@@ -36,6 +36,10 @@ auto_chat_mode_fallback = true
 thinking_summary = false
 # 是否动态生成 Statsig 指纹
 dynamic_statsig = true
+# 是否启用真·x-statsig-id 签名（调用 scripts/x-statsig-id.js 的常驻 Node worker，
+# 对 (path, method) 实时签名）。需运行环境存在 node；签名失败/无 node 时自动回落到
+# dynamic_statsig 决定的兜底串（x0）。
+real_statsig = true
 # 是否允许生成 NSFW 图片
 enable_nsfw = true
 # 搜索信源始终以 search_sources 结构化字段输出（无需此开关）。
@@ -60,6 +64,13 @@ imagine_public_image_proxy = false
 #   grok_html — HTML <video> 标签，src 为 Grok CDN URL
 #   local_html — HTML <video> 标签，src 为本地代理 URL
 video_format = "grok_url"
+
+
+# ==================== Statsig 真签名 ====================
+[statsig]
+# 真·x-statsig-id 签名器使用的 Node 可执行文件（默认 PATH 中的 node）。
+# 仅在 features.real_statsig = true 时生效。
+node_bin = "node"
 
 
 # ==================== 本地缓存 ====================

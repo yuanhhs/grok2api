@@ -434,6 +434,10 @@
           "label": "Dynamic Statsig",
           "desc": "Generates a fresh Statsig device fingerprint for each request to reduce the likelihood of risk-control challenges."
         },
+        "realStatsig": {
+          "label": "Real Statsig Signature",
+          "desc": "Calls the Node signer to produce a genuine grok-validated x-statsig-id per request; falls back to the dynamic/static fingerprint if it fails or node is unavailable."
+        },
         "enableNsfw": {
           "label": "Allow NSFW Generation",
           "desc": "Permits the image generation endpoint to bypass NSFW content filtering."

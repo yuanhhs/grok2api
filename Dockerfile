@@ -55,7 +55,8 @@ RUN apk add --no-cache \
     openssl \
     libgcc \
     libstdc++ \
-    libcurl
+    libcurl \
+    nodejs
 
 WORKDIR /app
 

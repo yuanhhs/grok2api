@@ -434,6 +434,10 @@
           "label": "动态 Statsig",
           "desc": "为每次请求动态生成 Statsig 设备指纹，以降低风控拦截概率。"
         },
+        "realStatsig": {
+          "label": "真·Statsig 签名",
+          "desc": "调用 Node 签名器为每次请求生成 grok 校验通过的真实 x-statsig-id；失败或无 node 时自动回落到动态/静态指纹。"
+        },
         "enableNsfw": {
           "label": "允许 NSFW 生成",
           "desc": "允许图像生成接口绕过 NSFW 内容过滤。"
