@@ -17,8 +17,10 @@ once the worker is warm.
 """
 
 import atexit
+import base64
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -50,6 +52,75 @@ def _egress_proxy() -> str:
     return ""
 
 
+_DEFAULT_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+)
+_Q_TTL_S = 25 * 60     # refresh well within a grok build's lifetime
+_Q_RETRY_S = 60        # retry sooner after a failed fetch
+
+
+def _fetch_q() -> Optional[str]:
+    """Fetch the grok homepage ``Q`` seed via browser-impersonating curl_cffi.
+
+    This reuses the same TLS-fingerprint path the app's normal API calls use,
+    so it passes Cloudflare — unlike the worker's plain-Node fetch, which CF
+    challenges. Returns the 48-byte base64 ``<meta>`` seed, or ``None`` on any
+    failure / CF challenge page. Runs in a background thread (blocking is fine).
+    """
+    try:
+        from curl_cffi import requests as cffi
+        from app.dataplane.proxy.adapters.profile import resolve_proxy_profile
+        from app.dataplane.proxy.adapters.session import normalize_proxy_url
+    except Exception as exc:
+        logger.debug("statsig Q fetch: dependency unavailable: {}", exc)
+        return None
+
+    profile = resolve_proxy_profile(None)  # validated browser + UA + cf_cookies
+    impersonate = (profile.browser or "chrome").strip() or "chrome"
+    headers = {
+        "User-Agent": profile.user_agent or _DEFAULT_UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    if profile.cf_cookies:
+        headers["Cookie"] = profile.cf_cookies
+
+    cfg = get_config()
+    proxy = _egress_proxy()
+    kwargs: dict = {"impersonate": impersonate, "headers": headers, "timeout": 20}
+    if proxy:
+        norm = normalize_proxy_url(proxy)
+        kwargs["proxies"] = {"http": norm, "https": norm}
+        if cfg.get_bool("proxy.egress.skip_ssl_verify", False):
+            kwargs["verify"] = False
+
+    try:
+        resp = cffi.get("https://grok.com/", **kwargs)
+        html = resp.text or ""
+    except Exception as exc:
+        logger.debug("statsig Q fetch failed: {}", exc)
+        return None
+
+    low = html.lower()
+    if "just a moment" in low or "challenge-platform" in low:
+        logger.debug(
+            "statsig Q fetch: Cloudflare challenge (impersonate={} proxy={})",
+            impersonate,
+            "set" if proxy else "none",
+        )
+        return None
+    for m in re.finditer(r'content="([^"]+)"', html):
+        candidate = m.group(1)
+        try:
+            if len(base64.b64decode(candidate)) == 48:
+                return candidate
+        except Exception:
+            pass
+    logger.debug("statsig Q fetch: no 48-byte meta seed found in homepage")
+    return None
+
+
 class _Worker:
     """Single persistent Node signer process with id-keyed request dispatch."""
 
@@ -61,6 +132,10 @@ class _Worker:
         self._counter = 0
         self._starting = False
         self._last_spawn = 0.0
+        # Python-side Q cache (fetched via curl_cffi, fed to the worker).
+        self._q: Optional[str] = None
+        self._q_lock = threading.Lock()
+        self._refresher_on = False
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -98,7 +173,7 @@ class _Worker:
                 node_bin,
                 _SCRIPT.name,
                 "set" if proxy else "none",
-                "set" if cookie else "none(无 cf_clearance,Q 抓取可能被 CF 拦截)",
+                "set" if cookie else "none",
             )
             proc = subprocess.Popen(
                 [node_bin, str(_SCRIPT), "--serve"],
@@ -113,9 +188,21 @@ class _Worker:
             threading.Thread(target=self._reader, args=(proc,), daemon=True).start()
             threading.Thread(target=self._stderr_drain, args=(proc,), daemon=True).start()
 
-            # Warmup also forces the worker's first Q fetch; give it room.
+            # Fetch Q via browser-fingerprinted curl_cffi (passes Cloudflare),
+            # then feed it to the worker — Node never touches CF itself.
+            self._set_q(_fetch_q())
+            self._ensure_refresher()
+            q = self._cached_q()
+            if not q:
+                logger.warning(
+                    "statsig worker 预热失败: 无法获取 Q（Cloudflare 拦截 / curl_cffi 不可用 / 无 cf_clearance），"
+                    "回滚到 x0 兼容串。可在 [proxy.clearance] 配 cf_cookies+user_agent 或 flaresolverr 提升过墙率。"
+                )
+                self._kill()
+                return
+
             sig, err = self._roundtrip(
-                "/rest/app-chat/conversations/new", "POST", _WARMUP_TIMEOUT_S
+                "/rest/app-chat/conversations/new", "POST", _WARMUP_TIMEOUT_S, q=q
             )
             if sig:
                 logger.info(
@@ -123,9 +210,7 @@ class _Worker:
                 )
             else:
                 logger.warning(
-                    "statsig worker 预热失败 (reason={})，回滚到 x0 兼容串。"
-                    "常见原因：抓不到 Q(无有效 cf_clearance 被 Cloudflare 拦) 或 node 不可用。",
-                    err or "unknown",
+                    "statsig worker 预热失败 (reason={})，回滚到 x0 兼容串。", err or "unknown"
                 )
                 self._kill()
         except Exception as exc:
@@ -143,6 +228,32 @@ class _Worker:
                 proc.kill()
             except Exception:
                 pass
+
+    # -- Q seed cache ------------------------------------------------------
+
+    def _cached_q(self) -> Optional[str]:
+        with self._q_lock:
+            return self._q
+
+    def _set_q(self, q: Optional[str]) -> None:
+        if q:
+            with self._q_lock:
+                self._q = q
+
+    def _ensure_refresher(self) -> None:
+        with self._q_lock:
+            if self._refresher_on:
+                return
+            self._refresher_on = True
+        threading.Thread(target=self._refresh_q_loop, daemon=True).start()
+
+    def _refresh_q_loop(self) -> None:
+        """Periodically refresh Q so the hot path never blocks on a fetch."""
+        while True:
+            time.sleep(_Q_TTL_S)
+            q = _fetch_q()
+            if q:
+                self._set_q(q)
 
     # -- io ----------------------------------------------------------------
 
@@ -195,7 +306,7 @@ class _Worker:
             pass
 
     def _roundtrip(
-        self, pathname: str, method: str, timeout: float
+        self, pathname: str, method: str, timeout: float, q: Optional[str] = None
     ) -> tuple[Optional[str], Optional[str]]:
         """Send one sign request. Returns ``(sig, err)`` — exactly one is set."""
         proc = self._proc
@@ -212,10 +323,10 @@ class _Worker:
             with self._pending_lock:
                 self._pending[rid] = (event, box)
             try:
-                payload = json.dumps(
-                    {"id": rid, "pathname": pathname, "method": method}
-                )
-                proc.stdin.write(payload + "\n")  # type: ignore[union-attr]
+                req: dict = {"id": rid, "pathname": pathname, "method": method}
+                if q:
+                    req["q"] = q
+                proc.stdin.write(json.dumps(req) + "\n")  # type: ignore[union-attr]
                 proc.stdin.flush()  # type: ignore[union-attr]
             except Exception as exc:
                 with self._pending_lock:
@@ -241,7 +352,9 @@ class _Worker:
             self.ensure_started()
             logger.debug("statsig: worker 预热中,本次回滚 x0 (pathname={})", pathname)
             return None
-        sig, err = self._roundtrip(pathname, method, _REQUEST_TIMEOUT_S)
+        sig, err = self._roundtrip(
+            pathname, method, _REQUEST_TIMEOUT_S, q=self._cached_q()
+        )
         if sig is None:
             logger.debug(
                 "statsig: 本次回滚 x0 (pathname={} reason={})", pathname, err
