@@ -93,29 +93,45 @@ class _Worker:
             if cookie:
                 env["GROK_COOKIE"] = cookie
 
+            logger.info(
+                "statsig worker spawning: node_bin={} script={} proxy={} cf_cookie={}",
+                node_bin,
+                _SCRIPT.name,
+                "set" if proxy else "none",
+                "set" if cookie else "none(无 cf_clearance,Q 抓取可能被 CF 拦截)",
+            )
             proc = subprocess.Popen(
                 [node_bin, str(_SCRIPT), "--serve"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 env=env,
                 text=True,
                 bufsize=1,
             )
             self._proc = proc
             threading.Thread(target=self._reader, args=(proc,), daemon=True).start()
+            threading.Thread(target=self._stderr_drain, args=(proc,), daemon=True).start()
 
             # Warmup also forces the worker's first Q fetch; give it room.
-            warm = self._roundtrip(
+            sig, err = self._roundtrip(
                 "/rest/app-chat/conversations/new", "POST", _WARMUP_TIMEOUT_S
             )
-            if warm:
-                logger.debug("statsig worker ready (sig_len={})", len(warm))
+            if sig:
+                logger.info(
+                    "statsig worker ready: 真签名已生效 (sig_len={})", len(sig)
+                )
             else:
-                logger.debug("statsig worker warmup produced no signature; using x0 fallback")
+                logger.warning(
+                    "statsig worker 预热失败 (reason={})，回滚到 x0 兼容串。"
+                    "常见原因：抓不到 Q(无有效 cf_clearance 被 Cloudflare 拦) 或 node 不可用。",
+                    err or "unknown",
+                )
                 self._kill()
         except Exception as exc:
-            logger.debug("statsig worker spawn failed: {}", exc)
+            logger.warning(
+                "statsig worker 启动失败: {} (node 缺失/不可执行?)，回滚到 x0 兼容串", exc
+            )
             self._kill()
         finally:
             self._starting = False
@@ -162,16 +178,35 @@ class _Worker:
             for event, _ in slots:
                 event.set()
 
-    def _roundtrip(self, pathname: str, method: str, timeout: float) -> Optional[str]:
+    def _stderr_drain(self, proc: subprocess.Popen) -> None:
+        """Surface the Node worker's stderr (Q-fetch errors, ready banner)."""
+        try:
+            stderr = proc.stderr
+            if stderr is None:
+                return
+            while True:
+                line = stderr.readline()
+                if line == "":
+                    break
+                line = line.rstrip()
+                if line:
+                    logger.debug("[statsig-worker] {}", line)
+        except Exception:
+            pass
+
+    def _roundtrip(
+        self, pathname: str, method: str, timeout: float
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Send one sign request. Returns ``(sig, err)`` — exactly one is set."""
         proc = self._proc
         if proc is None or proc.poll() is not None:
-            return None
+            return None, "worker not running"
 
         event = threading.Event()
         box: dict = {}
         with self._write_lock:
             if self._proc is None or self._proc.poll() is not None:
-                return None
+                return None, "worker not running"
             self._counter += 1
             rid = self._counter
             with self._pending_lock:
@@ -182,28 +217,36 @@ class _Worker:
                 )
                 proc.stdin.write(payload + "\n")  # type: ignore[union-attr]
                 proc.stdin.flush()  # type: ignore[union-attr]
-            except Exception:
+            except Exception as exc:
                 with self._pending_lock:
                     self._pending.pop(rid, None)
                 self._kill()
-                return None
+                return None, f"stdin write failed: {exc}"
 
         if not event.wait(timeout):
             with self._pending_lock:
                 self._pending.pop(rid, None)
-            return None
+            return None, f"timeout after {timeout}s"
 
         msg = box.get("msg")
         if not msg:
-            return None
+            return None, "worker exited / no response"
         sig = msg.get("sig")
-        return sig if isinstance(sig, str) and sig else None
+        if isinstance(sig, str) and sig:
+            return sig, None
+        return None, str(msg.get("err") or "empty signature")
 
     def sign(self, pathname: str, method: str) -> Optional[str]:
         if not self._alive():
             self.ensure_started()
+            logger.debug("statsig: worker 预热中,本次回滚 x0 (pathname={})", pathname)
             return None
-        return self._roundtrip(pathname, method, _REQUEST_TIMEOUT_S)
+        sig, err = self._roundtrip(pathname, method, _REQUEST_TIMEOUT_S)
+        if sig is None:
+            logger.debug(
+                "statsig: 本次回滚 x0 (pathname={} reason={})", pathname, err
+            )
+        return sig
 
 
 _worker = _Worker()
@@ -218,10 +261,11 @@ def get_statsig_id(pathname: str, method: str = "POST") -> Optional[str]:
     """
     try:
         if not get_config().get_bool("features.real_statsig", True):
+            logger.debug("statsig: real_statsig 已关闭 → 用 x0 兼容串")
             return None
         return _worker.sign(pathname or "/", (method or "POST").upper())
     except Exception as exc:
-        logger.debug("get_statsig_id error: {}", exc)
+        logger.debug("get_statsig_id error: {} → 用 x0 兼容串", exc)
         return None
 
 
