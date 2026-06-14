@@ -224,8 +224,16 @@ def build_http_headers(
     origin: Optional[str] = None,
     referer: Optional[str] = None,
     lease: ProxyLease | None = None,
+    url: Optional[str] = None,
+    method: str = "POST",
 ) -> dict[str, str]:
-    """Build headers for a standard HTTP reverse-proxy request."""
+    """Build headers for a standard HTTP reverse-proxy request.
+
+    When *url* is provided and ``features.real_statsig`` is enabled, the real
+    grok ``x-statsig-id`` is computed for the request's ``(path, method)`` via
+    the Node signer; on any failure it falls back to ``_statsig_id`` (x0).
+    Callers that omit *url* always use the x0 fallback.
+    """
     profile = _resolve_profile(lease)
     raw_ua = profile.user_agent
     ua = _sanitize(raw_ua, field="user_agent")
@@ -251,6 +259,12 @@ def build_http_headers(
     ref_host = urlparse(ref).hostname
     site = "same-origin" if org_host and org_host == ref_host else "same-site"
 
+    statsig = None
+    if url and get_config().get_bool("features.real_statsig", True):
+        from app.dataplane.proxy.adapters.statsig import get_statsig_id
+
+        statsig = get_statsig_id(urlparse(url).path or "/", method)
+
     headers: dict[str, str] = {
         "Accept": accept,
         "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -268,13 +282,17 @@ def build_http_headers(
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": site,
         "User-Agent": ua,
-        "x-statsig-id": _statsig_id(),
+        "x-statsig-id": statsig or _statsig_id(),
         "x-xai-request-id": str(uuid.uuid4()),
     }
     headers.update(_client_hints(browser, raw_ua))
     headers["Cookie"] = build_sso_cookie(cookie_token, lease=lease)
 
-    logger.debug("http headers built: header_count={}", len(headers))
+    logger.debug(
+        "http headers built: header_count={} statsig={}",
+        len(headers),
+        "real" if statsig else "fallback",
+    )
     return headers
 
 

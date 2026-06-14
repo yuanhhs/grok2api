@@ -393,6 +393,7 @@
         "autoChatModeFallback": { "label": "AUTO チャットモードのフォールバック" },
         "thinkingSummary": { "label": "思考要約出力" },
         "dynamicStatsig": { "label": "動的 Statsig" },
+        "realStatsig": { "label": "本物の Statsig 署名" },
         "enableNsfw": { "label": "NSFW 生成を許可" },
         "showSearchSources": { "label": "コンテンツにソースを追加", "desc": "検索ソースは常に search_sources フィールドに出力されます。このオプションは、テキスト解析クライアントとの互換性のために ## Sources セクションをコンテンツに追加するかどうかを制御します。" },
         "customInstruction": { "label": "グローバル補助指示" },

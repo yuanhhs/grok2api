@@ -45,7 +45,7 @@
 | 多账号池 | basic / super / heavy 三级池，自动负载均衡与配额同步 |
 | 免费账号 | 支持 `console.x.ai` SSO Token，`*-console` 模型零成本使用 |
 | 媒体生成 | 文生图、图像编辑、文生视频、图生视频，本地缓存与代理链接 |
-| 防封内置 | `x-statsig-id` 兼容修复，WARP + FlareSolverr 一键部署 |
+| 防封内置 | `x-statsig-id` 真签名（内置零浏览器 Node 签名器，失败自动回落兼容串），WARP + FlareSolverr 一键部署 |
 | 管理后台 | Admin 配置、账号管理、Web Chat、Masonry 画廊、ChatKit 语音 |
 
 ---
@@ -386,6 +386,15 @@ curl http://localhost:8000/v1/chat/completions \
 ---
 
 ## 更新日志
+
+### v0.1.6 (2026-06-15)
+
+**新增**
+
+- 🔐 **真·`x-statsig-id` 签名**：内置零浏览器 Node 签名器（`scripts/x-statsig-id.js`），以常驻 worker 形式对每个请求的 `(path, method)` 实时签名，逐字节复刻 grok 浏览器真实签名，显著降低风控拦截。
+  - 新增开关 `features.real_statsig`（默认开启）；签名失败、未就绪或运行环境无 Node 时，自动回落到原有兼容指纹（受 `dynamic_statsig` 控制），**无回归**。
+  - 首页 `Q` 种子由 worker 自取并按 TTL 缓存（代理 + clearance cookie 经环境变量注入）；运行镜像已内置 `nodejs`。
+  - DEBUG 日志标注本次请求用的是 `statsig=real` 还是 `statsig=fallback`，便于排查。
 
 ### v0.1.5 (2025-06-13)
 
