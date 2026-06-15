@@ -185,7 +185,7 @@ class _Worker:
                 node_bin,
                 _SCRIPT.name,
                 "set" if proxy else "none",
-                "set" if cookie else "none",
+                "set" if cookie else "none(无 cf_clearance,Q 抓取可能被 CF 拦截)",
             )
             proc = subprocess.Popen(
                 [node_bin, str(_SCRIPT), "--serve"],
