@@ -14,6 +14,7 @@ else → TRANSPORT_ERROR
 
 from app.platform.errors import UpstreamError
 from app.control.proxy.models import ProxyFeedback, ProxyFeedbackKind
+from app.platform.logging.logger import logger
 
 
 def upstream_feedback(exc: UpstreamError) -> ProxyFeedback:
@@ -32,4 +33,18 @@ def upstream_feedback(exc: UpstreamError) -> ProxyFeedback:
     return ProxyFeedback(kind=kind, status_code=status or None)
 
 
-__all__ = ["upstream_feedback"]
+async def safe_proxy_feedback(proxy, lease, feedback: ProxyFeedback, *, context: str = "") -> None:
+    """Send proxy feedback without letting feedback failures mask the request error."""
+    try:
+        await proxy.feedback(lease, feedback)
+    except Exception as exc:
+        logger.debug(
+            "proxy feedback failed: context={} kind={} status={} error={}",
+            context or "-",
+            feedback.kind,
+            feedback.status_code,
+            exc,
+        )
+
+
+__all__ = ["upstream_feedback", "safe_proxy_feedback"]

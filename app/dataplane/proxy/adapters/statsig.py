@@ -30,6 +30,7 @@ from typing import Optional
 from app.platform.logging.logger import logger
 from app.platform.config.snapshot import get_config
 from app.control.proxy.config import resolve_clearance_config
+from app.control.proxy.models import ProxyLease
 
 # scripts/x-statsig-id.js relative to project root
 # (app/dataplane/proxy/adapters/statsig.py → parents[4] == project root)
@@ -40,8 +41,10 @@ _WARMUP_TIMEOUT_S = 60.0  # background warmup may include a homepage fetch
 _SPAWN_COOLDOWN_S = 30.0  # avoid respawn thrash when node/Q is unavailable
 
 
-def _egress_proxy() -> str:
+def _egress_proxy(lease: ProxyLease | None = None) -> str:
     """First configured egress proxy (single_proxy url, else first of pool)."""
+    if lease is not None and lease.proxy_url:
+        return lease.proxy_url
     cfg = get_config()
     url = cfg.get_str("proxy.egress.proxy_url", "").strip()
     if url:
@@ -60,7 +63,7 @@ _Q_TTL_S = 25 * 60     # refresh well within a grok build's lifetime
 _Q_RETRY_S = 60        # retry sooner after a failed fetch
 
 
-def _fetch_q() -> Optional[str]:
+def _fetch_q(lease: ProxyLease | None = None) -> Optional[str]:
     """Fetch the grok homepage ``Q`` seed via browser-impersonating curl_cffi.
 
     This reuses the same TLS-fingerprint path the app's normal API calls use,
@@ -76,7 +79,7 @@ def _fetch_q() -> Optional[str]:
         logger.debug("statsig Q fetch: dependency unavailable: {}", exc)
         return None
 
-    profile = resolve_proxy_profile(None)  # validated browser + UA + cf_cookies
+    profile = resolve_proxy_profile(lease)  # validated browser + UA + cf_cookies
     impersonate = (profile.browser or "chrome").strip() or "chrome"
     headers = {
         "User-Agent": profile.user_agent or _DEFAULT_UA,
@@ -87,7 +90,7 @@ def _fetch_q() -> Optional[str]:
         headers["Cookie"] = profile.cf_cookies
 
     cfg = get_config()
-    proxy = _egress_proxy()
+    proxy = _egress_proxy(lease)
     kwargs: dict = {"impersonate": impersonate, "headers": headers, "timeout": 20}
     if proxy:
         norm = normalize_proxy_url(proxy)
@@ -136,14 +139,18 @@ class _Worker:
         self._q: Optional[str] = None
         self._q_lock = threading.Lock()
         self._refresher_on = False
+        self._last_lease: ProxyLease | None = None
+        self._retry_on = False
 
     # -- lifecycle ---------------------------------------------------------
 
     def _alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
-    def ensure_started(self) -> None:
+    def ensure_started(self, lease: ProxyLease | None = None) -> None:
         """Kick off a background spawn+warm if not already running/starting."""
+        if lease is not None:
+            self._remember_lease(lease)
         if self._alive() or self._starting:
             return
         now = time.monotonic()
@@ -156,15 +163,20 @@ class _Worker:
             self._last_spawn = now
         threading.Thread(target=self._spawn_and_warm, daemon=True).start()
 
+    def _remember_lease(self, lease: ProxyLease) -> None:
+        if lease.cf_cookies or lease.user_agent or lease.proxy_url:
+            self._last_lease = lease
+
     def _spawn_and_warm(self) -> None:
         try:
+            lease = self._last_lease
             node_bin = get_config().get_str("statsig.node_bin", "node") or "node"
             env = os.environ.copy()
-            proxy = _egress_proxy()
+            proxy = _egress_proxy(lease)
             if proxy:
                 env["HTTPS_PROXY"] = proxy
                 env["ALL_PROXY"] = proxy
-            cookie = resolve_clearance_config().cf_cookies
+            cookie = (lease.cf_cookies if lease is not None else "") or resolve_clearance_config().cf_cookies
             if cookie:
                 env["GROK_COOKIE"] = cookie
 
@@ -190,7 +202,7 @@ class _Worker:
 
             # Fetch Q via browser-fingerprinted curl_cffi (passes Cloudflare),
             # then feed it to the worker — Node never touches CF itself.
-            self._set_q(_fetch_q())
+            self._set_q(_fetch_q(lease))
             self._ensure_refresher()
             q = self._cached_q()
             if not q:
@@ -199,6 +211,7 @@ class _Worker:
                     "回滚到 x0 兼容串。可在 [proxy.clearance] 配 cf_cookies+user_agent 或 flaresolverr 提升过墙率。"
                 )
                 self._kill()
+                self._schedule_retry()
                 return
 
             sig, err = self._roundtrip(
@@ -213,13 +226,28 @@ class _Worker:
                     "statsig worker 预热失败 (reason={})，回滚到 x0 兼容串。", err or "unknown"
                 )
                 self._kill()
+                self._schedule_retry()
         except Exception as exc:
             logger.warning(
                 "statsig worker 启动失败: {} (node 缺失/不可执行?)，回滚到 x0 兼容串", exc
             )
             self._kill()
+            self._schedule_retry()
         finally:
             self._starting = False
+
+    def _schedule_retry(self) -> None:
+        with self._write_lock:
+            if self._retry_on:
+                return
+            self._retry_on = True
+        threading.Thread(target=self._retry_loop, daemon=True).start()
+
+    def _retry_loop(self) -> None:
+        time.sleep(_Q_RETRY_S)
+        with self._write_lock:
+            self._retry_on = False
+        self.ensure_started(self._last_lease)
 
     def _kill(self) -> None:
         proc, self._proc = self._proc, None
@@ -251,7 +279,7 @@ class _Worker:
         """Periodically refresh Q so the hot path never blocks on a fetch."""
         while True:
             time.sleep(_Q_TTL_S)
-            q = _fetch_q()
+            q = _fetch_q(self._last_lease)
             if q:
                 self._set_q(q)
 
@@ -347,9 +375,13 @@ class _Worker:
             return sig, None
         return None, str(msg.get("err") or "empty signature")
 
-    def sign(self, pathname: str, method: str) -> Optional[str]:
+    def sign(
+        self, pathname: str, method: str, lease: ProxyLease | None = None
+    ) -> Optional[str]:
+        if lease is not None:
+            self._remember_lease(lease)
         if not self._alive():
-            self.ensure_started()
+            self.ensure_started(lease)
             logger.debug("statsig: worker 预热中,本次回滚 x0 (pathname={})", pathname)
             return None
         sig, err = self._roundtrip(
@@ -366,7 +398,9 @@ _worker = _Worker()
 atexit.register(_worker._kill)
 
 
-def get_statsig_id(pathname: str, method: str = "POST") -> Optional[str]:
+def get_statsig_id(
+    pathname: str, method: str = "POST", lease: ProxyLease | None = None
+) -> Optional[str]:
     """Return a real ``x-statsig-id`` for *pathname*/*method*, or ``None``.
 
     ``None`` means "fall back to x0" — returned whenever the real signer is
@@ -376,7 +410,7 @@ def get_statsig_id(pathname: str, method: str = "POST") -> Optional[str]:
         if not get_config().get_bool("features.real_statsig", True):
             logger.debug("statsig: real_statsig 已关闭 → 用 x0 兼容串")
             return None
-        return _worker.sign(pathname or "/", (method or "POST").upper())
+        return _worker.sign(pathname or "/", (method or "POST").upper(), lease=lease)
     except Exception as exc:
         logger.debug("get_statsig_id error: {} → 用 x0 兼容串", exc)
         return None

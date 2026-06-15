@@ -31,6 +31,7 @@ from app.platform.storage import save_local_video
 from app.control.account.enums import FeedbackKind
 from app.control.model import registry as model_registry
 from app.control.model.registry import resolve as resolve_model
+from app.control.proxy.models import ProxyFeedback, ProxyFeedbackKind
 from app.dataplane.proxy import get_proxy_runtime
 from app.dataplane.proxy.adapters.headers import build_http_headers
 from app.dataplane.proxy.adapters.session import ResettableSession, build_session_kwargs
@@ -43,6 +44,10 @@ from app.dataplane.reverse.runtime.endpoint_table import CHAT
 from app.dataplane.reverse.transport.asset_upload import (
     resolve_uploaded_asset_reference,
     upload_from_input,
+)
+from app.dataplane.reverse.transport._proxy_feedback import (
+    safe_proxy_feedback,
+    upstream_feedback,
 )
 from app.dataplane.reverse.transport.assets import download_asset
 from app.dataplane.reverse.transport.media import create_media_post
@@ -339,22 +344,47 @@ async def _stream_video_request(
     kwargs = build_session_kwargs(lease=lease)
 
     async with ResettableSession(**kwargs) as session:
-        response = await session.post(
-            CHAT,
-            headers=headers,
-            data=orjson.dumps(payload),
-            timeout=timeout_s,
-            stream=True,
-        )
+        try:
+            response = await session.post(
+                CHAT,
+                headers=headers,
+                data=orjson.dumps(payload),
+                timeout=timeout_s,
+                stream=True,
+            )
+        except Exception:
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                ProxyFeedback(kind=ProxyFeedbackKind.TRANSPORT_ERROR),
+                context="video-post",
+            )
+            raise
         if response.status_code != 200:
             body = response.content.decode("utf-8", "replace")[:300]
-            raise UpstreamError(
+            upstream_error = UpstreamError(
                 f"Video upstream returned {response.status_code}",
                 status=response.status_code,
                 body=body,
             )
-        async for line in response.aiter_lines():
-            yield line
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                upstream_feedback(upstream_error),
+                context="video",
+            )
+            raise upstream_error
+        try:
+            async for line in response.aiter_lines():
+                yield line
+        except Exception:
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                ProxyFeedback(kind=ProxyFeedbackKind.TRANSPORT_ERROR),
+                context="video-stream",
+            )
+            raise
 
 
 def _absolutize_video_url(url: str) -> str:

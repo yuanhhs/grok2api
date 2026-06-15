@@ -263,7 +263,7 @@ def build_http_headers(
     if url and get_config().get_bool("features.real_statsig", True):
         from app.dataplane.proxy.adapters.statsig import get_statsig_id
 
-        statsig = get_statsig_id(urlparse(url).path or "/", method)
+        statsig = get_statsig_id(urlparse(url).path or "/", method, lease=lease)
 
     headers: dict[str, str] = {
         "Accept": accept,

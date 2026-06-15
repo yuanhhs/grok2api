@@ -24,6 +24,7 @@ from app.control.model.registry import resolve as resolve_model
 from app.control.model.enums import ModeId
 from app.control.account.enums import FeedbackKind
 from app.dataplane.account.selector import current_strategy
+from app.control.proxy.models import ProxyFeedback, ProxyFeedbackKind
 from app.dataplane.proxy.adapters.headers import build_http_headers
 from app.dataplane.proxy import get_proxy_runtime
 from app.dataplane.proxy.adapters.session import (
@@ -38,6 +39,10 @@ from app.dataplane.reverse.protocol.xai_chat import (
 from app.dataplane.reverse.protocol.xai_usage import is_invalid_credentials_error
 from app.dataplane.reverse.runtime.endpoint_table import CHAT
 from app.dataplane.reverse.transport.asset_upload import upload_from_input
+from app.dataplane.reverse.transport._proxy_feedback import (
+    safe_proxy_feedback,
+    upstream_feedback,
+)
 from app.dataplane.reverse.protocol.tool_prompt import (
     build_tool_system_prompt,
     extract_tool_names,
@@ -424,6 +429,12 @@ async def _stream_chat(
                 stream=True,
             )
         except Exception as exc:
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                ProxyFeedback(kind=ProxyFeedbackKind.TRANSPORT_ERROR),
+                context="chat-post",
+            )
             raise _transport_upstream_error(
                 exc, context="Chat transport failed"
             ) from exc
@@ -433,16 +444,29 @@ async def _stream_chat(
                 body = response.content.decode("utf-8", "replace")[:400]
             except Exception:
                 body = ""
-            raise UpstreamError(
+            upstream_error = UpstreamError(
                 f"Chat upstream returned {response.status_code}",
                 status=response.status_code,
                 body=body,
             )
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                upstream_feedback(upstream_error),
+                context="chat",
+            )
+            raise upstream_error
 
         try:
             async for line in response.aiter_lines():
                 yield line
         except Exception as exc:
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                ProxyFeedback(kind=ProxyFeedbackKind.TRANSPORT_ERROR),
+                context="chat-stream",
+            )
             raise _transport_upstream_error(
                 exc, context="Chat stream read failed"
             ) from exc

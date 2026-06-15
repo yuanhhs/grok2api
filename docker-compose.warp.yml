@@ -43,7 +43,10 @@ services:
 
   # ── grok2api ──────────────────────────────────────────────────────────────
   grok2api:
-    image: ghcr.io/jiujiu532/grok2api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: grok2api-local:latest
     container_name: grok2api
     restart: unless-stopped
     ports:

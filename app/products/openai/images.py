@@ -21,6 +21,7 @@ from app.control.model.registry import resolve as resolve_model
 from app.control.model.enums import ModeId
 from app.control.model.spec import ModelSpec
 from app.control.account.enums import FeedbackKind
+from app.control.proxy.models import ProxyFeedback, ProxyFeedbackKind
 from app.dataplane.reverse.transport.imagine_ws import stream_images
 from app.dataplane.reverse.protocol.xai_chat import (
     StreamAdapter,
@@ -37,6 +38,10 @@ from app.dataplane.reverse.protocol.xai_image_edit import (
     extract_streaming_response,
 )
 from app.dataplane.reverse.transport.assets import download_asset
+from app.dataplane.reverse.transport._proxy_feedback import (
+    safe_proxy_feedback,
+    upstream_feedback,
+)
 from app.dataplane.reverse.transport.asset_upload import (
     resolve_uploaded_asset_reference,
     upload_from_input,
@@ -917,22 +922,47 @@ async def _stream_image_edit(
     kwargs = build_session_kwargs(lease=lease)
 
     async with ResettableSession(**kwargs) as session:
-        response = await session.post(
-            CHAT,
-            headers=headers,
-            data=orjson.dumps(payload),
-            timeout=timeout_s,
-            stream=True,
-        )
+        try:
+            response = await session.post(
+                CHAT,
+                headers=headers,
+                data=orjson.dumps(payload),
+                timeout=timeout_s,
+                stream=True,
+            )
+        except Exception:
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                ProxyFeedback(kind=ProxyFeedbackKind.TRANSPORT_ERROR),
+                context="image-edit-post",
+            )
+            raise
         if response.status_code != 200:
             body = response.content.decode("utf-8", "replace")[:300]
-            raise UpstreamError(
+            upstream_error = UpstreamError(
                 f"Image-edit upstream returned {response.status_code}",
                 status=response.status_code,
                 body=body,
             )
-        async for line in response.aiter_lines():
-            yield line
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                upstream_feedback(upstream_error),
+                context="image-edit",
+            )
+            raise upstream_error
+        try:
+            async for line in response.aiter_lines():
+                yield line
+        except Exception:
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                ProxyFeedback(kind=ProxyFeedbackKind.TRANSPORT_ERROR),
+                context="image-edit-stream",
+            )
+            raise
 
 
 async def _stream_lite_generate(
@@ -954,22 +984,47 @@ async def _stream_lite_generate(
     kwargs  = build_session_kwargs(lease=lease)
 
     async with ResettableSession(**kwargs) as session:
-        response = await session.post(
-            CHAT,
-            headers = headers,
-            data    = orjson.dumps(payload),
-            timeout = timeout_s,
-            stream  = True,
-        )
+        try:
+            response = await session.post(
+                CHAT,
+                headers = headers,
+                data    = orjson.dumps(payload),
+                timeout = timeout_s,
+                stream  = True,
+            )
+        except Exception:
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                ProxyFeedback(kind=ProxyFeedbackKind.TRANSPORT_ERROR),
+                context="image-generation-lite-post",
+            )
+            raise
         if response.status_code != 200:
             body = response.content.decode("utf-8", "replace")[:300]
-            raise UpstreamError(
+            upstream_error = UpstreamError(
                 f"Image-generation upstream returned {response.status_code}",
                 status = response.status_code,
                 body   = body,
             )
-        async for line in response.aiter_lines():
-            yield line
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                upstream_feedback(upstream_error),
+                context="image-generation-lite",
+            )
+            raise upstream_error
+        try:
+            async for line in response.aiter_lines():
+                yield line
+        except Exception:
+            await safe_proxy_feedback(
+                proxy,
+                lease,
+                ProxyFeedback(kind=ProxyFeedbackKind.TRANSPORT_ERROR),
+                context="image-generation-lite-stream",
+            )
+            raise
 
 
 async def _run_lite_request(

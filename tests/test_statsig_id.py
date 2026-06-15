@@ -86,7 +86,9 @@ class StatsigIdTests(unittest.TestCase):
     def test_real_statsig_uses_signer_when_available(self):
         """real_statsig on + signer returns a value → that value is used verbatim."""
         sentinel = "REAL_SIGNATURE_VALUE"
-        statsig_stub = types.SimpleNamespace(get_statsig_id=lambda path, method: sentinel)
+        statsig_stub = types.SimpleNamespace(
+            get_statsig_id=lambda path, method, **kwargs: sentinel
+        )
         sys.modules["app.dataplane.proxy.adapters.statsig"] = statsig_stub
         try:
             hdrs = _build_headers(
@@ -98,7 +100,9 @@ class StatsigIdTests(unittest.TestCase):
 
     def test_real_statsig_signer_none_falls_back_to_x0(self):
         """real_statsig on but signer returns None (not warm/failed) → x0 fallback."""
-        statsig_stub = types.SimpleNamespace(get_statsig_id=lambda path, method: None)
+        statsig_stub = types.SimpleNamespace(
+            get_statsig_id=lambda path, method, **kwargs: None
+        )
         sys.modules["app.dataplane.proxy.adapters.statsig"] = statsig_stub
         try:
             hdrs = _build_headers(
