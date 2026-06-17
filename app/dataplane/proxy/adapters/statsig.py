@@ -48,7 +48,7 @@ async def _fetch_q_html(cookie: str, proxy_url: str) -> str:
     if cookie:
         headers["Cookie"] = cookie
 
-    kwargs: dict = {"headers": headers, "timeout": 20, "impersonate": "chrome149"}
+    kwargs: dict = {"headers": headers, "timeout": 20, "impersonate": "chrome142"}
     if proxy_url:
         kwargs["proxy"] = proxy_url
 
