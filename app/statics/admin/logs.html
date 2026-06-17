@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grok2API - 日志查看</title>
+  <link rel="icon" href="/favicon.ico?v={{APP_VERSION}}">
+  <link href="https://cdn.jsdelivr.net/npm/geist@1.0.0/dist/fonts/geist-sans/style.css" rel="stylesheet">
+  <link href="/static/css/app.css?v={{APP_VERSION}}" rel="stylesheet">
+  <style>
+    body { background:#FAF9F5 }
+
+    /* Page header */
+    .page-hd   { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px }
+    .page-title{ font-size:22px; font-weight:700; line-height:1.2 }
+    .page-sub  { font-size:13px; color:var(--fg-muted); margin-top:5px }
+    .page-actions { display:flex; gap:8px; align-items:center; flex-shrink:0 }
+
+    .page-action-btn {
+      height:32px; padding:0 14px; border-radius:999px;
+      display:inline-flex; align-items:center; justify-content:center; gap:6px;
+      font-size:13px; font-weight:600;
+      border:1px solid #e6e6e6; background:#fafafa; color:#444;
+    }
+    .page-action-btn:hover { background:#f3f3f3; border-color:#dcdcdc }
+    .page-action-btn-primary { background:#111; border-color:#111; color:#fff }
+    .page-action-btn-primary:hover { background:#222; border-color:#222 }
+
+    /* Toolbar */
+    .log-toolbar {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+    .log-select {
+      height:32px;
+      padding:0 10px;
+      border-radius:8px;
+      border:1px solid #e6e6e6;
+      background:#fff;
+      font-size:12px;
+      color:#333;
+      font-family:inherit;
+      outline:none;
+    }
+    .log-select:focus { border-color:#bbb }
+    .log-search-wrap {
+      position:relative;
+      flex:1;
+      min-width:160px;
+      max-width:320px;
+    }
+    .log-search-wrap svg {
+      position:absolute;
+      left:9px;
+      top:50%;
+      transform:translateY(-50%);
+      width:13px;
+      height:13px;
+      stroke:#aaa;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+      fill:none;
+      pointer-events:none;
+    }
+    .log-search {
+      width:100%;
+      height:32px;
+      padding:0 10px 0 30px;
+      border-radius:8px;
+      border:1px solid #e6e6e6;
+      background:#fff;
+      font-size:12px;
+      font-family:inherit;
+      outline:none;
+      color:#333;
+    }
+    .log-search:focus { border-color:#bbb }
+    .log-search::placeholder { color:#bbb }
+
+    /* Level chips */
+    .level-chips {
+      display:flex;
+      align-items:center;
+      gap:5px;
+      flex-wrap:nowrap;
+    }
+    .level-chip {
+      height:28px;
+      padding:0 10px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:600;
+      background:#f5f5f5;
+      color:#9a9a9a;
+      display:inline-flex;
+      align-items:center;
+      cursor:pointer;
+      transition:background .12s, color .12s;
+      white-space:nowrap;
+      border:none;
+      font-family:inherit;
+    }
+    .level-chip:hover { background:#efefef; color:#555 }
+    .level-chip.active { background:#111; color:#fff }
+    .level-chip[data-level="ERROR"].active   { background:#dc2626; color:#fff }
+    .level-chip[data-level="WARNING"].active { background:#ea580c; color:#fff }
+    .level-chip[data-level="DEBUG"].active   { background:#6b7280; color:#fff }
+    .level-chip[data-level="INFO"].active    { background:#2563eb; color:#fff }
+    .level-chip[data-level="SUCCESS"].active { background:#16a34a; color:#fff }
+
+    /* Pagi */
+    .log-pagi {
+      display:flex;
+      align-items:center;
+      gap:5px;
+      margin-left:auto;
+      font-size:12px;
+      color:#9a9a9a;
+    }
+    .pagi-btn {
+      width:28px; height:28px; border-radius:6px;
+      display:inline-flex; align-items:center; justify-content:center;
+      color:inherit; transition:background .1s;
+      font:inherit; border:none; background:none; cursor:pointer;
+    }
+    .pagi-btn:hover { background:#efefef }
+    .pagi-btn:disabled { opacity:.35; pointer-events:none }
+    .pagi-btn svg { width:13px; height:13px; stroke:currentColor; fill:none; stroke-linecap:round; stroke-linejoin:round }
+
+    /* Log table */
+    .log-card {
+      background:#fff;
+      border-radius:14px;
+      overflow:hidden;
+    }
+    .log-table {
+      width:100%;
+      border-collapse:collapse;
+      font-family:ui-monospace,monospace;
+    }
+    .log-table th {
+      background:#fff;
+      font-size:11px;
+      font-weight:500;
+      color:#9b9b9b;
+      padding:10px 14px;
+      text-align:left;
+      letter-spacing:.01em;
+      font-family:var(--font-sans);
+      border-bottom:1px solid #f3f3f3;
+      white-space:nowrap;
+    }
+    .log-table td {
+      font-size:12px;
+      padding:9px 14px;
+      border-bottom:1px solid #f9f9f9;
+      vertical-align:top;
+      color:#444;
+    }
+    .log-table tr:last-child td { border-bottom:none }
+    .log-table tr:hover td { background:#fdfdfd }
+
+    .log-time   { color:#aaa; white-space:nowrap; width:180px }
+    .log-loc    { color:#bbb; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis; font-size:11px }
+    .log-msg    { word-break:break-all; min-width:280px }
+
+    .lvl-badge {
+      display:inline-flex;
+      align-items:center;
+      height:18px;
+      padding:0 7px;
+      border-radius:999px;
+      font-size:10px;
+      font-weight:700;
+      letter-spacing:.02em;
+      white-space:nowrap;
+      font-family:var(--font-sans);
+    }
+    .lvl-DEBUG    { background:#f4f4f5; color:#71717a }
+    .lvl-INFO     { background:#eff6ff; color:#2563eb }
+    .lvl-SUCCESS  { background:#f0fdf4; color:#16a34a }
+    .lvl-WARNING  { background:#fff7ed; color:#ea580c }
+    .lvl-ERROR    { background:#fef2f2; color:#dc2626 }
+    .lvl-CRITICAL { background:#fdf2f8; color:#9d174d }
+
+    .log-empty {
+      padding:52px 20px;
+      text-align:center;
+      color:#aaa;
+      font-size:13px;
+      font-family:var(--font-sans);
+    }
+
+    .log-total-badge {
+      min-width:20px; height:20px; padding:0 7px; border-radius:999px;
+      display:inline-flex; align-items:center; justify-content:center;
+      background:#f1ece2; color:#6a6459;
+      font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; line-height:1;
+    }
+    .section-head {
+      display:flex; align-items:baseline; justify-content:space-between;
+      gap:12px; margin:28px 0 12px;
+    }
+    .section-title {
+      font-size:13px; font-weight:600; color:#222; letter-spacing:.01em;
+    }
+    .section-title-row { display:inline-flex; align-items:center; gap:8px }
+  </style>
+</head>
+<body>
+
+<div id="admin-header" data-active="/admin/logs"></div>
+
+<main class="admin-main">
+
+  <!-- Page heading -->
+  <div class="page-hd">
+    <div>
+      <div class="page-title">日志查看</div>
+      <div class="page-sub">查看应用运行日志，支持按等级和关键词过滤。</div>
+    </div>
+    <div class="page-actions">
+      <button onclick="load()" class="page-action-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8 8 0 0 0-14.6-4.6"/><path d="M4 4v5h5"/><path d="M4 13a8 8 0 0 0 14.6 4.6"/><path d="M20 20v-5h-5"/></svg>
+        刷新
+      </button>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <div class="section-title-row">
+      <div class="section-title">日志记录</div>
+      <span class="log-total-badge" id="log-total">0</span>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="log-toolbar">
+    <!-- File selector -->
+    <select class="log-select" id="file-sel" onchange="onFileChange()" style="max-width:200px">
+      <option value="">加载中…</option>
+    </select>
+
+    <!-- Level filter chips -->
+    <div class="level-chips">
+      <button class="level-chip active" data-level="" onclick="setLevel('')">全部</button>
+      <button class="level-chip" data-level="DEBUG" onclick="setLevel('DEBUG')">DEBUG</button>
+      <button class="level-chip" data-level="INFO" onclick="setLevel('INFO')">INFO</button>
+      <button class="level-chip" data-level="SUCCESS" onclick="setLevel('SUCCESS')">SUCCESS</button>
+      <button class="level-chip" data-level="WARNING" onclick="setLevel('WARNING')">WARNING</button>
+      <button class="level-chip" data-level="ERROR" onclick="setLevel('ERROR')">ERROR</button>
+    </div>
+
+    <!-- Search -->
+    <div class="log-search-wrap">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="search" class="log-search" id="log-search" placeholder="关键词搜索…" oninput="onSearch()">
+    </div>
+
+    <!-- Pagination -->
+    <div class="log-pagi">
+      <button class="pagi-btn" id="btn-prev" onclick="prevPage()" disabled>
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span id="pagi-info" style="min-width:72px;text-align:center">-</span>
+      <button class="pagi-btn" id="btn-next" onclick="nextPage()" disabled>
+        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Log table -->
+  <div class="log-card">
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>时间</th>
+          <th>等级</th>
+          <th>位置</th>
+          <th>消息</th>
+        </tr>
+      </thead>
+      <tbody id="log-tbody">
+        <tr><td colspan="4" class="log-empty">加载中…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<script src="/static/js/i18n.js?v={{APP_VERSION}}"></script>
+<script src="/static/js/auth.js?v={{APP_VERSION}}"></script>
+<script src="/static/js/admin-header.js?v={{APP_VERSION}}"></script>
+<script src="/static/js/toast.js?v={{APP_VERSION}}"></script>
+<script src="/static/js/footer.js?v={{APP_VERSION}}"></script>
+<script>
+let curFile   = '';
+let curLevel  = '';
+let curSearch = '';
+let curPage   = 1;
+let totalPages = 1;
+
+let _searchTimer = null;
+
+// ── Boot ────────────────────────────────────────────────────────────────────
+(async () => {
+  await new Promise(r => I18n.onReady(r));
+  await renderAdminHeader?.();
+  await renderSiteFooter?.();
+  const key = await adminKey.get();
+  if (!key || !await verifyKey(ADMIN_API + '/verify', key).catch(() => false))
+    return location.href = '/admin/login';
+  await loadFiles();
+  await load();
+})();
+
+// ── API ─────────────────────────────────────────────────────────────────────
+async function _api(path) {
+  const key = await adminKey.get();
+  const r = await fetch(ADMIN_API + path, {
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || r.status); }
+  return r.json();
+}
+
+// ── Files ────────────────────────────────────────────────────────────────────
+async function loadFiles() {
+  try {
+    const d = await _api('/logs/files');
+    const sel = document.getElementById('file-sel');
+    if (!d.files || !d.files.length) {
+      sel.innerHTML = '<option value="">暂无日志文件</option>';
+      return;
+    }
+    sel.innerHTML = d.files
+      .map((f, i) => `<option value="${xe(f)}"${i===0?' selected':''}>${xe(f)}</option>`)
+      .join('');
+    curFile = d.files[0];
+  } catch (e) {
+    showToast('加载文件列表失败：' + e.message, 'error');
+  }
+}
+
+function onFileChange() {
+  curFile = document.getElementById('file-sel').value;
+  curPage = 1;
+  load();
+}
+
+// ── Level filter ─────────────────────────────────────────────────────────────
+function setLevel(level) {
+  curLevel = level;
+  curPage  = 1;
+  document.querySelectorAll('.level-chip').forEach(el => {
+    el.classList.toggle('active', el.dataset.level === level);
+  });
+  load();
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+function onSearch() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => {
+    curSearch = document.getElementById('log-search').value.trim();
+    curPage   = 1;
+    load();
+  }, 300);
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+function prevPage() { if (curPage > 1) { curPage--; load(); } }
+function nextPage() { if (curPage < totalPages) { curPage++; load(); } }
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function load() {
+  const tbody = document.getElementById('log-tbody');
+  tbody.innerHTML = '<tr><td colspan="4" class="log-empty">加载中…</td></tr>';
+
+  const params = new URLSearchParams({ page: curPage, page_size: 200 });
+  if (curFile)   params.set('file',   curFile);
+  if (curLevel)  params.set('level',  curLevel);
+  if (curSearch) params.set('search', curSearch);
+
+  try {
+    const d = await _api('/logs?' + params.toString());
+
+    // sync file select if server responded with a different file
+    if (d.file && d.files && d.files.length) {
+      const sel = document.getElementById('file-sel');
+      if (sel.options.length !== d.files.length || sel.value !== d.file) {
+        sel.innerHTML = d.files
+          .map(f => `<option value="${xe(f)}"${f===d.file?' selected':''}>${xe(f)}</option>`)
+          .join('');
+        curFile = d.file;
+      }
+    }
+
+    totalPages = d.pages || 1;
+    document.getElementById('log-total').textContent = d.total || 0;
+    document.getElementById('pagi-info').textContent =
+      d.total ? `${d.page} / ${d.pages}` : '0 / 0';
+    document.getElementById('btn-prev').disabled = curPage <= 1;
+    document.getElementById('btn-next').disabled = curPage >= totalPages;
+
+    if (!d.lines || !d.lines.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="log-empty">暂无日志记录</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = d.lines.map(rowHtml).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="4" class="log-empty">加载失败：${xe(e.message)}</td></tr>`;
+    showToast('加载日志失败：' + e.message, 'error');
+  }
+}
+
+// ── Row ───────────────────────────────────────────────────────────────────────
+function rowHtml(line) {
+  const lvlClass = 'lvl-' + (line.level || 'INFO');
+  const highlight = curSearch ? hlt(xe(line.message), curSearch) : xe(line.message);
+  return `<tr>
+    <td class="log-time">${xe(line.time || '')}</td>
+    <td><span class="lvl-badge ${lvlClass}">${xe(line.level || '')}</span></td>
+    <td class="log-loc" title="${xe(line.location || '')}">${xe(line.location || '')}</td>
+    <td class="log-msg">${highlight}</td>
+  </tr>`;
+}
+
+// Simple keyword highlight
+function hlt(text, keyword) {
+  if (!keyword) return text;
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`(${escaped})`, 'gi'),
+    '<mark style="background:#fff3cd;color:#7a5c00;border-radius:2px;padding:0 1px">$1</mark>');
+}
+
+function xe(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+</script>
+</body>
+</html>

@@ -1,57 +1,68 @@
-import base64
+import asyncio
 import importlib.util
 import pathlib
 import sys
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 
-def _load_headers_module():
-    logger_stub = types.SimpleNamespace(debug=lambda *args, **kwargs: None)
-    sys.modules.setdefault("app", types.ModuleType("app"))
-    sys.modules.setdefault("app.platform", types.ModuleType("app.platform"))
-    sys.modules.setdefault("app.platform.logging", types.ModuleType("app.platform.logging"))
-    sys.modules["app.platform.logging.logger"] = types.SimpleNamespace(logger=logger_stub)
-    sys.modules.setdefault("app.platform.config", types.ModuleType("app.platform.config"))
-    sys.modules["app.platform.config.snapshot"] = types.SimpleNamespace(get_config=lambda: None)
-    sys.modules.setdefault("app.control", types.ModuleType("app.control"))
-    sys.modules.setdefault("app.control.proxy", types.ModuleType("app.control.proxy"))
-    sys.modules["app.control.proxy.models"] = types.SimpleNamespace(ProxyLease=object)
-    sys.modules.setdefault("app.dataplane", types.ModuleType("app.dataplane"))
-    sys.modules.setdefault("app.dataplane.proxy", types.ModuleType("app.dataplane.proxy"))
-    sys.modules.setdefault("app.dataplane.proxy.adapters", types.ModuleType("app.dataplane.proxy.adapters"))
-    sys.modules["app.dataplane.proxy.adapters.profile"] = types.SimpleNamespace(
-        ProxyProfile=object,
-        resolve_proxy_profile=lambda lease: None,
+def _load_statsig_module():
+    for mod in [
+        "app", "app.platform", "app.platform.logging",
+    ]:
+        sys.modules.setdefault(mod, types.ModuleType(mod))
+    sys.modules["app.platform.logging.logger"] = types.SimpleNamespace(
+        logger=types.SimpleNamespace(
+            debug=lambda *a, **k: None,
+            warning=lambda *a, **k: None,
+            info=lambda *a, **k: None,
+        )
     )
-
-    file_path = pathlib.Path(__file__).resolve().parents[1] / "app/dataplane/proxy/adapters/headers.py"
-    spec = importlib.util.spec_from_file_location("test_headers_module", file_path)
+    file_path = (
+        pathlib.Path(__file__).resolve().parents[1]
+        / "app/dataplane/proxy/adapters/statsig.py"
+    )
+    spec = importlib.util.spec_from_file_location("test_statsig_module", file_path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
 
 
-headers = _load_headers_module()
+statsig = _load_statsig_module()
+
+_FALLBACK = (
+    "ZTpUeXBlRXJyb3I6IENhbm5vdCByZWFkIHByb3BlcnRpZXMgb2YgdW5kZWZpbmVkIChyZWFkaW5nICdjaGls"
+    "ZE5vZGVzJyk="
+)
 
 
-class _DummyConfig:
-    def get_bool(self, key, default=False):
-        if key == "features.dynamic_statsig":
-            return True
-        return default
+class StatsigSignTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sign_returns_non_empty_string(self):
+        fake_q = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        result = await statsig.sign("/rest/app-chat/conversations/new", "POST", fake_q)
+        self.assertIsInstance(result, str)
+        self.assertGreater(len(result), 10)
 
+    async def test_statsig_id_falls_back_on_q_failure(self):
+        async def _bad_q(*a, **k):
+            raise RuntimeError("no Q")
 
-class StatsigIdTests(unittest.TestCase):
-    def test_dynamic_statsig_uses_x1_prefix(self):
-        with patch.object(headers, "get_config", return_value=_DummyConfig()):
-            with patch.object(headers.random, "choice", return_value=True):
-                value = headers._statsig_id()
+        with patch.object(statsig, "get_q", side_effect=_bad_q):
+            result = await statsig.statsig_id("/rest/app-chat/conversations/new", "POST")
+        self.assertEqual(result, _FALLBACK)
 
-        decoded = base64.b64decode(value).decode()
-        self.assertTrue(decoded.startswith("x1:TypeError:"))
+    async def test_statsig_id_uses_signed_value_when_q_available(self):
+        fake_q = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+        async def _good_q(*a, **k):
+            return fake_q
+
+        with patch.object(statsig, "get_q", side_effect=_good_q):
+            result = await statsig.statsig_id("/rest/app-chat/conversations/new", "POST")
+        self.assertNotEqual(result, _FALLBACK)
+        self.assertGreater(len(result), 10)
 
 
 if __name__ == "__main__":

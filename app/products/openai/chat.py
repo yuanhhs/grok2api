@@ -403,8 +403,10 @@ async def _stream_chat(
     )
     payload_bytes = orjson.dumps(payload)
 
-    headers = build_http_headers(
+    headers = await build_http_headers(
         token,
+        url=CHAT,
+        method="POST",
         content_type="application/json",
         origin="https://grok.com",
         referer="https://grok.com/",
