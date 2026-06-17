@@ -49,12 +49,14 @@ async def post_grpc_web(
     Raises:
         ``UpstreamError`` if the HTTP response status is not 200.
     """
-    headers = build_http_headers(
+    headers = await build_http_headers(
         token,
-        content_type = "application/grpc-web+proto",
-        origin       = origin,
-        referer      = referer,
-        lease        = lease,
+        url=url,
+        method="POST",
+        content_type="application/grpc-web+proto",
+        origin=origin,
+        referer=referer,
+        lease=lease,
     )
     headers.update(_GRPC_WEB_HEADERS)
 

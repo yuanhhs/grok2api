@@ -3,19 +3,15 @@
 All values are sanitized to ASCII-safe Latin-1 before use.
 """
 
-import base64
-import random
 import re
-import string
 import uuid
 from typing import Optional
 from urllib.parse import urlparse
 
-
 from app.platform.logging.logger import logger
-from app.platform.config.snapshot import get_config
 from app.control.proxy.models import ProxyLease
 from app.dataplane.proxy.adapters.profile import ProxyProfile, resolve_proxy_profile
+from app.dataplane.proxy.adapters.statsig import statsig_id as _statsig_id_async
 
 # ---------------------------------------------------------------------------
 # Unicode → ASCII normalisation map
@@ -57,27 +53,6 @@ def _sanitize(value: Optional[str], *, field: str, strip_spaces: bool = False) -
             len(out),
         )
     return out
-
-
-# ---------------------------------------------------------------------------
-# Statsig / request-id generation
-# ---------------------------------------------------------------------------
-
-
-def _statsig_id() -> str:
-    cfg = get_config()
-    if cfg.get_bool("features.dynamic_statsig", False):
-        if random.choice((True, False)):
-            rand = "".join(random.choices(string.ascii_lowercase + string.digits, k=5))
-            msg = f"x1:TypeError: Cannot read properties of null (reading 'children['{rand}']')"
-        else:
-            rand = "".join(random.choices(string.ascii_lowercase, k=10))
-            msg = f"x1:TypeError: Cannot read properties of undefined (reading '{rand}')"
-        return base64.b64encode(msg.encode()).decode()
-    return (
-        "ZTpUeXBlRXJyb3I6IENhbm5vdCByZWFkIHByb3BlcnRpZXMgb2YgdW5kZWZpbmVkIChyZWFkaW5nICdjaGls"
-        "ZE5vZGVzJyk="
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +139,17 @@ def _resolve_profile(lease: ProxyLease | None) -> ProxyProfile:
     return resolve_proxy_profile(lease)
 
 
+def _resolve_proxy_url(lease: ProxyLease | None) -> str:
+    if lease is not None and getattr(lease, "proxy_url", None):
+        return lease.proxy_url
+    try:
+        from app.platform.config.snapshot import get_config
+        cfg = get_config()
+        return cfg.get_str("proxy.egress.proxy_url", "") or ""
+    except Exception:
+        return ""
+
+
 # ---------------------------------------------------------------------------
 # Public builders
 # ---------------------------------------------------------------------------
@@ -217,9 +203,11 @@ def build_sso_cookie(
     return cookie
 
 
-def build_http_headers(
+async def build_http_headers(
     cookie_token: str,
     *,
+    url: Optional[str] = None,
+    method: str = "POST",
     content_type: Optional[str] = None,
     origin: Optional[str] = None,
     referer: Optional[str] = None,
@@ -251,6 +239,14 @@ def build_http_headers(
     ref_host = urlparse(ref).hostname
     site = "same-origin" if org_host and org_host == ref_host else "same-site"
 
+    parsed_path = urlparse(url).path if url else "/rest/app-chat/conversations/new"
+    cookie_str = build_sso_cookie(cookie_token, lease=lease)
+    proxy_url = _resolve_proxy_url(lease)
+
+    statsig = await _statsig_id_async(
+        parsed_path, method.upper(), cookie=cookie_str, proxy_url=proxy_url
+    )
+
     headers: dict[str, str] = {
         "Accept": accept,
         "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -268,11 +264,11 @@ def build_http_headers(
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": site,
         "User-Agent": ua,
-        "x-statsig-id": _statsig_id(),
+        "x-statsig-id": statsig,
         "x-xai-request-id": str(uuid.uuid4()),
     }
     headers.update(_client_hints(browser, raw_ua))
-    headers["Cookie"] = build_sso_cookie(cookie_token, lease=lease)
+    headers["Cookie"] = cookie_str
 
     logger.debug("http headers built: header_count={}", len(headers))
     return headers

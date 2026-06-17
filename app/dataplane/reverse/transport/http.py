@@ -28,8 +28,10 @@ async def post_stream(
 
     Raises ``UpstreamError`` on non-200 status.
     """
-    headers = build_http_headers(
+    headers = await build_http_headers(
         token,
+        url=url,
+        method="POST",
         content_type=content_type,
         origin=origin,
         referer=referer,
@@ -101,8 +103,8 @@ async def post_json(
     Pass *session* to reuse an existing connection (avoids a new TLS handshake).
     When *session* is ``None`` a fresh session is created and closed automatically.
     """
-    headers = build_http_headers(
-        token, content_type=content_type, origin=origin, referer=referer, lease=lease
+    headers = await build_http_headers(
+        token, url=url, method="POST", content_type=content_type, origin=origin, referer=referer, lease=lease
     )
 
     import orjson
@@ -140,8 +142,10 @@ async def get_json(
     referer: str = "https://grok.com/",
 ) -> dict:
     """GET *url* and return parsed JSON response body."""
-    headers = build_http_headers(
+    headers = await build_http_headers(
         token,
+        url=url,
+        method="GET",
         content_type="application/json",
         origin=origin,
         referer=referer,
@@ -187,8 +191,10 @@ async def delete_json(
     referer: str = "https://grok.com/",
 ) -> dict:
     """DELETE *url* and return parsed JSON response body (may be empty → {})."""
-    headers = build_http_headers(
+    headers = await build_http_headers(
         token,
+        url=url,
+        method="DELETE",
         content_type="application/json",
         origin=origin,
         referer=referer,
@@ -239,8 +245,10 @@ async def get_bytes_stream(
 
     Raises ``UpstreamError`` on non-200 status.
     """
-    headers = build_http_headers(
+    headers = await build_http_headers(
         token,
+        url=url,
+        method="GET",
         content_type=None,
         origin=origin,
         referer=referer,
