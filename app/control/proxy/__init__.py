@@ -362,6 +362,7 @@ class ProxyDirectory:
                 ("" if affinity == "direct" else affinity, f"https://{clearance_host}"),
             )
 
+        _manual_q_scheduled = False
         for key, (proxy_url, clearance_origin) in refresh_targets.items():
             affinity, clearance_host = key
             if self._clearance_mode == ClearanceMode.MANUAL:
@@ -369,6 +370,12 @@ class ProxyDirectory:
                     affinity_key=affinity,
                     clearance_host=clearance_host,
                 )
+                if new_bundle and not _manual_q_scheduled and "grok.com" in clearance_origin:
+                    _manual_q_scheduled = True
+                    asyncio.ensure_future(self._refresh_q_manual(
+                        cf_cookies=new_bundle.cf_cookies,
+                        proxy_url=proxy_url,
+                    ))
             else:
                 new_bundle = await self._flare.refresh_bundle(
                     affinity_key=affinity,
@@ -384,6 +391,15 @@ class ProxyDirectory:
                     "clearance refresh failed, keeping old bundle: bundle={}",
                     key,
                 )
+
+    async def _refresh_q_manual(self, cf_cookies: str, proxy_url: str) -> None:
+        """Best-effort: fetch grok.com with the current clearance cookies to extract Q."""
+        try:
+            from app.dataplane.proxy.adapters.statsig import fetch_q, set_q
+            q = await fetch_q(cookie=cf_cookies, proxy_url=proxy_url)
+            set_q(q)
+        except Exception as exc:
+            logger.debug("manual statsig Q refresh failed (non-fatal): {}", exc)
 
     # ------------------------------------------------------------------
     # Properties

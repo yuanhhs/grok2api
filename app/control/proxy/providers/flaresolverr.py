@@ -48,6 +48,16 @@ class FlareSolverrClearanceProvider:
             return None
         host = result.get("clearance_host", "grok.com")
 
+        html = result.get("response_html", "")
+        if html and "grok.com" in target:
+            try:
+                from app.dataplane.proxy.adapters.statsig import extract_q_from_html, set_q
+                q = extract_q_from_html(html)
+                if q:
+                    set_q(q)
+            except Exception:
+                pass
+
         return ClearanceBundle(
             bundle_id    = f"flaresolverr:{affinity_key}@{host}",
             cf_cookies   = result.get("cookies", ""),
@@ -111,6 +121,7 @@ class FlareSolverrClearanceProvider:
                 "cookies":    _extract_all_cookies(chosen),
                 "user_agent": ua,
                 "clearance_host": host or "grok.com",
+                "response_html": solution.get("response", ""),
             }
 
         except HTTPError as exc:

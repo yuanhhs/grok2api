@@ -4,6 +4,10 @@ Calls scripts/x-statsig-id.js as a subprocess to produce a real x-statsig-id
 value.  Q (the 48-byte base64 site-verification meta) is fetched once from
 grok.com and cached in-process; it is refreshed automatically when the cache
 is older than CACHE_TTL seconds or when the caller signals a stale Q.
+
+Q can also be injected externally via set_q() — the clearance refresh path
+(FlareSolverr / manual) extracts Q from the homepage HTML it already fetches
+and calls set_q(), so statsig never needs to make its own HTTP request.
 """
 
 import asyncio
@@ -32,6 +36,31 @@ def _get_lock() -> asyncio.Lock:
     return _q_lock
 
 
+def set_q(q: str) -> None:
+    """Inject Q directly (e.g. extracted from FlareSolverr / clearance HTML).
+
+    Calling this from the clearance refresh path means statsig never needs to
+    make its own HTTP request to grok.com.
+    """
+    global _q, _q_ts
+    if q:
+        _q = q
+        _q_ts = time.monotonic()
+        logger.debug("statsig Q injected externally")
+
+
+def extract_q_from_html(html: str) -> Optional[str]:
+    """Return the first 48-byte base64 meta content value found in *html*."""
+    for m in re.finditer(r'content="([^"]+)"', html):
+        c = m.group(1)
+        try:
+            if len(base64.b64decode(c)) == 48:
+                return c
+        except Exception:
+            pass
+    return None
+
+
 async def _fetch_q_html(cookie: str, proxy_url: str) -> str:
     """Fetch grok.com homepage HTML using curl_cffi to bypass Cloudflare."""
     from curl_cffi.requests import AsyncSession
@@ -57,17 +86,6 @@ async def _fetch_q_html(cookie: str, proxy_url: str) -> str:
         return resp.text
 
 
-def _extract_q(html: str) -> Optional[str]:
-    for m in re.finditer(r'content="([^"]+)"', html):
-        c = m.group(1)
-        try:
-            if len(base64.b64decode(c)) == 48:
-                return c
-        except Exception:
-            pass
-    return None
-
-
 async def fetch_q(cookie: str = "", proxy_url: str = "") -> str:
     """Fetch a fresh Q from grok.com homepage.  Raises on failure."""
     html = await _fetch_q_html(cookie, proxy_url)
@@ -75,7 +93,7 @@ async def fetch_q(cookie: str = "", proxy_url: str = "") -> str:
         raise RuntimeError(
             "Cloudflare challenge page returned — cf_clearance cookie may be expired"
         )
-    q = _extract_q(html)
+    q = extract_q_from_html(html)
     if not q:
         raise RuntimeError("Could not find 48-byte meta Q in grok.com homepage")
     return q
@@ -143,4 +161,4 @@ async def statsig_id(pathname: str, method: str, cookie: str = "", proxy_url: st
         return _FALLBACK
 
 
-__all__ = ["statsig_id", "fetch_q", "get_q", "sign"]
+__all__ = ["statsig_id", "fetch_q", "get_q", "set_q", "extract_q_from_html", "sign"]
